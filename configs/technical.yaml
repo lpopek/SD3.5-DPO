@@ -1,0 +1,46 @@
+# TECHNICAL axis (rl_tech): MUSIQ + TOPIQ-NR.
+# CLIP-IQA(sharp) dropped 2026-09-03: it saturates at 0.997 +- 0.003 on this data, so its
+# within-prompt robust-z was noise. Re-add `clipiqa: 1.0` below to restore it (technical axis only).
+axis: technical
+base_model: stabilityai/stable-diffusion-3.5-medium
+plain_lora: /content/drive/MyDrive/Doktorat/content/results/merged_finetune/rw          # v2: the LoRA of the RufGen survey grid (v1 used merged_finetune/plain)
+out_dir: /content/drive/MyDrive/Doktorat/content/results/rl_tech
+
+# pair generation (K samples per prompt -> top-vs-bottom pairs)
+k_per_prompt: 8
+base_seed: 1000          # keep away from survey seeds 0-6 / 0-19
+max_pairs_per_prompt: 2
+margin: 0.1
+gen_steps: 28
+gen_guidance: 4.5          # v2 (RufGen grid); v1 pairs used 7.0
+
+metrics:                 # weights interchangeable (hook for MOS calibration)
+  musiq: 1.0
+  topiq_nr: 1.0
+
+# Diffusion-DPO (LoRA on top of the fused plain LoRA)
+lora_rank: 32
+lora_alpha: 64
+learning_rate: 2.56e-6
+beta: 100.0
+max_steps: 500
+batch_pairs: 1
+grad_accum: 4
+resolution: 1024
+gradient_checkpointing: true
+save_every: 100
+log_every: 10
+seed: 0
+
+# Pairs from the SHARED pool (v2): scripts/build_pairs.py --config configs/technical.yaml
+# top_bottom with 8 rungs over K=16 -> up to 8 pairs/prompt (1424); ranked_gap
+# (rank gap >= 4, 16 pairs/prompt) -> up to 2848 pairs. Training on them:
+#   scripts/run_pipeline.py --config configs/technical.yaml --pairs /content/drive/MyDrive/Doktorat/content/results/rl_tech/pairs_v2/preferences.jsonl --run-name lora_v2
+pairs_v2:
+  pool_dir: /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/RufGen/pool
+  out_dir: /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/RufGen/pairs_v2/rl_tech      # absolute; otherwise {out_dir}/{out_subdir}
+  out_subdir: pairs_v2
+  strategy: top_bottom
+  max_pairs_per_prompt: 8
+  margin: 0.1
+  min_rank_gap: 4

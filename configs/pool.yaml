@@ -1,0 +1,35 @@
+# Shared preference pool (v2): one set of K samples per prompt, scored on BOTH axes.
+# 178 prompts x K=16 = 2848 images (>= 2500), seeds base_seed..base_seed+K-1.
+# Everything matches the RufGen survey grid (IAA_Bias_05_Guitar_Aesthetics_2500.ipynb):
+# LoRA = merged_finetune/rw at scale 1.0, prompts = the manifest prompt strings
+# (training trigger "Ruf Guitar Schrodinger 6", template "... a single-cutaway electric
+# guitar body, {color} finish, {top}, product photo on a neutral gray background ..."),
+# guidance 4.5, 28 steps, 1024^2, CPU generator. The v1 per-axis runs (plain LoRA,
+# catalogue token, guidance 7.0) are NOT reused; the pool is generated from scratch
+# (~4.5-5 h on A100, resumable at image level).
+base_model: stabilityai/stable-diffusion-3.5-medium
+plain_lora: /content/drive/MyDrive/Doktorat/content/results/merged_finetune/rw
+manifest: /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/RufGen/tables/guitar_manifest.csv
+pool_dir: /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/RufGen/pool
+
+k_per_prompt: 16
+base_seed: 1000          # keep away from survey seeds 0-19 and reward_gain seeds 100+
+gen_steps: 28
+gen_guidance: 4.5          # RufGen grid used 4.5 (v1 pairs used 7.0)
+resolution: 1024
+score_batch_size: 8
+
+# earlier single-axis runs (K=8, seeds 1000-1007) used the CATALOGUE token, so their
+# images do not match the training-token prompts and are NOT imported. To reuse them
+# instead (and keep the catalogue token), list them here and build prompts_pool.txt
+# from rl_aes/pairs/scores.csv (see README).
+legacy_image_dirs: []
+
+# raw metrics to compute (weights only matter for the composite in build_pairs)
+axes:
+  aesthetic:
+    nima: 1.0
+    laion_aes: 1.0
+  technical:               # clipiqa dropped (saturates ~1.0 here); add `clipiqa: 1.0` to score it anyway
+    musiq: 1.0
+    topiq_nr: 1.0

@@ -1,0 +1,61 @@
+# DDPO (online RL, Flow-GRPO SDE sampler) — technical axis. Output: {out_dir}/lora_ddpo
+axis: technical
+base_model: stabilityai/stable-diffusion-3.5-medium
+plain_lora: /content/drive/MyDrive/Doktorat/content/results/merged_finetune/rw
+manifest: /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/RufGen/tables/guitar_manifest.csv
+out_dir: /content/drive/MyDrive/Doktorat/content/results/rl_tech
+
+metrics:
+  musiq: 1.0
+  topiq_nr: 1.0
+
+# rollouts (training): T SDE steps at 768^2; inference stays 28 ODE steps at 1024^2
+num_steps: 10
+guidance: 4.5
+noise_level: 0.7
+resolution: 768
+k_per_prompt: 8          # group size for the advantage (same as DDPO per-prompt normalisation)
+prompts_per_epoch: 8     # 64 samples / epoch
+sample_batch: 4
+
+# PPO
+epochs: 30
+inner_epochs: 1
+train_batch: 4
+grad_accum: 4
+learning_rate: 1.0e-4    # DDPO / Flow-GRPO LoRA regime (vs 2.56e-6 in DPO)
+clip_range: 1.0e-3       # per-dim mean log-prob; smoke on A100 showed |ratio-1| ~ 1e-3 (1e-4 clipped 55% of items)
+adv_clip: 5.0
+beta_kl: 0.0             # 0.004 = Flow-GRPO KL to the reference (extra forward per step)
+max_grad_norm: 1.0
+
+lora_rank: 32
+lora_alpha: 64
+gradient_checkpointing: true
+seed: 0
+save_every_epochs: 5
+save_rollouts: true      # keep training rollouts (768^2 PNG + rollouts.csv) — ~64 images / epoch, ~50 MB
+rollouts_per_prompt: 8
+
+# product identity in the reward (reward/identity.py):
+#   r = z_group(quality) + identity_lam * min(0, (clip_sim - tau) / sigma)
+# clip_sim = mean top-5 cosine similarity (CLIP ViT-L/14) to the 50 reference photos;
+# tau/sigma calibrated on the untuned model's own samples (calib_dir). 0 = off (the first
+# run, which drifted: maple neck, tremolo, cables).
+identity_lam: 1.0
+# shape term (reward/shape.py): the reference model is rolled out with the SAME noise; the
+# Sobel-edge similarity of the pair must stay above 1 - shape_tol, else shape_lam * deficit.
+# Costs one extra (no-grad) rollout per sample: ~+40% epoch time.
+shape_lam: 5.0
+shape_tol: 0.05
+adv_mode: group          # NOT global: with an absolute penalty a running baseline makes ALL advantages negative
+                         # once shape drops (run 2026-09-07: shape 1.0 -> 0.30 in 4 epochs, reward -2 -> -7, clip 0.8)
+baseline_window: 512
+identity:
+  reference_dirs:
+    - /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/gitarki/1024/whole
+    - /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/gitarki/1024/body
+  calib_dir: /content/drive/MyDrive/Doktorat/Dokumetacja/reward-GENERATED/Dataset/RufGen/pool/images     # untuned samples (any folder of plain images works)
+  calib_images: 128
+  topk: 5
+  model: openai/clip-vit-large-patch14
